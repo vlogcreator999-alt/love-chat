@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Mujgan — Personal Sweet Chat (Final)</title>
+<style>
+  :root{
+    --bg:#fff4fb;
+    --card:#fff;
+    --accent:#ff77b5;
+    --accent2:#ffb0d1;
+    --muted:#6b6b6b;
+    --userBubble:#ff6fae;
+    --aiBubble:#fff0f6;
+  }
+  *{box-sizing:border-box;font-family: 'Poppins', Inter, system-ui, sans-serif;}
+  html,body{height:100%;margin:0;background:linear-gradient(180deg,var(--bg),#fff);display:flex;align-items:center;justify-content:center;}
+  .app{width:100%;max-width:720px;height:100vh;padding:12px;display:flex;flex-direction:column;}
+  header{height:64px;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:12px;color:#fff;display:flex;align-items:center;justify-content:space-between;padding:10px 14px;}
+  .title{display:flex;gap:10px;align-items:center;font-weight:800}
+  .logo{width:44px;height:44;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:22px;box-shadow:0 6px 20px rgba(0,0,0,0.08);background:rgba(255,255,255,0.12)}
+  .menuBtn{width:44px;height:44;border-radius:10px;background:rgba(255,255,255,0.14);display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,0.06)}
+  main{flex:1;margin-top:12px;display:flex;flex-direction:column;gap:10px;}
+  .card{background:var(--card);border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,0.08);display:flex;flex-direction:column;overflow:hidden;min-height:62vh;}
+  .topDecor{padding:10px 14px;background:linear-gradient(180deg,#fff,#fff0fb);display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(0,0,0,0.04)}
+  .decorLeft{display:flex;gap:8px;align-items:center}
+  .decorLeft span{font-size:20px}
+  .chatArea{flex:1;padding:12px;overflow:auto;background:linear-gradient(180deg,#fff0fb,#fff);display:flex;flex-direction:column;gap:10px}
+  .msgRow{display:flex;max-width:100%}
+  .msgBubble{padding:10px 14px;border-radius:16px;line-height:1.25;box-shadow:0 8px 26px rgba(9,12,26,0.04);font-size:15px;word-break:break-word;}
+  .msg.user{justify-content:flex-end}
+  .msg.user .msgBubble{background:var(--userBubble);color:#fff;border-radius:18px 18px 6px 18px;max-width:78%;}
+  .msg.ai{justify-content:flex-start}
+  .msg.ai .msgBubble{background:var(--aiBubble);color:#111;border-radius:18px 18px 18px 6px;max-width:78%;}
+  .statusLine{font-size:12px;color:var(--muted);margin-bottom:6px}
+  footer{display:flex;align-items:center;gap:8px;padding:12px;border-top:1px solid rgba(0,0,0,0.04);background:transparent}
+  .input{flex:1;padding:12px;border-radius:14px;border:1px solid rgba(0,0,0,0.06);font-size:15px}
+  .sendBtn{background:linear-gradient(90deg,var(--accent),var(--accent2));border:none;color:#fff;padding:10px 14px;border-radius:12px;cursor:pointer;font-weight:800}
+  .menuPanel{position:absolute;right:18px;top:80px;background:var(--card);border-radius:12px;padding:8px;box-shadow:0 12px 40px rgba(0,0,0,0.12);display:none;z-index:120}
+  .menuPanel .item{padding:10px 12px;border-radius:8px;cursor:pointer;font-weight:700;color:#333}
+  .menuPanel .item:hover{background:rgba(0,0,0,0.03)}
+  .overlay{position:fixed;inset:0;background:rgba(0,0,0,0.34);display:none;align-items:center;justify-content:center;z-index:400}
+  .modal{background:#fff;padding:16px;border-radius:12px;max-width:92vw;width:380px;box-shadow:0 20px 60px rgba(0,0,0,0.2)}
+  @media(max-width:520px){
+    .app{padding:8px}
+    .card{min-height:70vh}
+    .decorLeft span{font-size:18px}
+  }
+</style>
+</head>
+<body>
+  <div class="app" role="application">
+    <header>
+      <div class="title"><div class="logo">💙</div><div>Mujgan — Sweet Chat</div></div>
+      <div class="menuBtn" id="menuBtn" title="Menu (options)">☰</div>
+    </header>
+
+    <main>
+      <div class="card" id="card">
+        <div class="topDecor">
+          <div class="decorLeft"><span>🧸</span><span>🌙</span><span>✨</span><span>🐱</span><span>🌸</span></div>
+          <div style="font-size:13px;color:var(--muted)">for Mujgan 💖</div>
+        </div>
+
+        <div class="chatArea" id="messages" aria-live="polite"></div>
+
+        <footer>
+          <input id="input" class="input" placeholder="Ask: What is my name? / Who is your creator?" autocomplete="off" />
+          <button id="send" class="sendBtn">Send</button>
+        </footer>
+      </div>
+    </main>
+  </div>
+
+  <!-- menu panel -->
+  <div class="menuPanel" id="menuPanel">
+    <div class="item" id="menuLove">💖 Love Calculator</div>
+    <div class="item" id="menuSecret">🔒 Secret Messages</div>
+    <div class="item" id="menuSettings">⚙️ Settings</div>
+  </div>
+
+  <!-- overlay / modal -->
+  <div class="overlay" id="overlay"><div class="modal" id="modalContent"></div></div>
+
+<script>
+/* Final sweet chat: short replies + correct personal Q&A + 'first random reply then answer' for "my name" */
+
+const messagesEl = document.getElementById('messages');
+const inputEl = document.getElementById('input');
+const sendBtn = document.getElementById('send');
+const menuBtn = document.getElementById('menuBtn');
+const menuPanel = document.getElementById('menuPanel');
+const overlay = document.getElementById('overlay');
+const modalContent = document.getElementById('modalContent');
+
+/* timings (ms) */
+const readMs = 500, thinkMs = 500, typeMs = 500;
+
+/* personal default data (in-code, offline) */
+const DATA = {
+  Soham: { name: "Soham", role: "Bestuu" },
+  Mujgan: { name: "Mujgan", role: "Bestie", favColors: "Blue & White", likes: ["cats","moon","stars","flowers"] },
+  sister: "Shin",
+  creatorText: "Soham your cute bestuu 🤭🤗😇"
+};
+
+/* small pool of short sweet random replies (normal chat) */
+const SHORT_REPLIES = [
+  "Hii 💕","You are sweet 🌸","Hehe you’re cute 🤭","Aww 😇","So lovely ✨",
+  "Yay! 😄","Oh wow 😍","I like that 💖","Nice! 🌟","Ahh so sweet 🥰"
+];
+
+/* tiny follow-up questions when unknown */
+const FOLLOW_UP = [
+  "Which do you prefer: cats or flowers? 🐱🌸",
+  "Tell me one tiny thing you love today 💫",
+  "Who's making you smile today? 😊"
+];
+
+/* utility: append user/bot UI rows (short bubbles only) */
+function appendUser(text){
+  const row = document.createElement('div'); row.className='msgRow msg user';
+  const b = document.createElement('div'); b.className='msgBubble user'; b.textContent = text;
+  row.appendChild(b); messagesEl.appendChild(row); messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+function appendBotStatus(status){
+  const row = document.createElement('div'); row.className='msgRow msg ai';
+  const b = document.createElement('div'); b.className='msgBubble ai';
+  const s = document.createElement('div'); s.className='statusLine'; s.textContent = status;
+  b.appendChild(s); row.appendChild(b); messagesEl.appendChild(row); messagesEl.scrollTop = messagesEl.scrollHeight;
+  return row;
+}
+function replaceWithTyping(row){
+  if(!row) return;
+  const b = row.querySelector('.msgBubble');
+  b.textContent = '';
+  const dots = document.createElement('span'); dots.textContent = '• • • typing';
+  dots.style.opacity = '0.8'; dots.style.fontStyle='italic';
+  b.appendChild(dots);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+function revealText(row, text){
+  return new Promise(resolve=>{
+    if(!row){ simpleBot(text); return resolve(); }
+    const b = row.querySelector('.msgBubble');
+    b.textContent = '';
+    // simple quick reveal (short text)
+    setTimeout(()=>{ b.textContent = text; messagesEl.scrollTop = messagesEl.scrollHeight; resolve(); }, 14 * Math.min(60, text.length));
+  });
+}
+function simpleBot(text){
+  const row = document.createElement('div'); row.className='msgRow msg ai';
+  const b = document.createElement('div'); b.className='msgBubble ai'; b.textContent = text;
+  row.appendChild(b); messagesEl.appendChild(row); messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+/* normalize input */
+function normalize(s){ return s.toLowerCase().replace(/[^a-z0-9\s]/gi,' ').replace(/\s+/g,' ').trim(); }
+
+/* detect intent (lightweight) */
+function detectIntent(raw){
+  const text = normalize(raw);
+  // set identity e.g. "i am soham" or "my name is soham"
+  const iam = raw.match(/\b(i am|i'm|my name is)\s+([A-Za-z]{2,30})/i);
+  if(iam) return { intent: 'set_identity', value: iam[2] };
+
+  if(/\bwhat(?:'s| is)? my name\b|\bwho am i\b/.test(text)) return {intent:'ask_my_name'};
+  if(/\bwhat(?:'s| is)? her name\b|\bwho is mujgan\b/.test(text)) return {intent:'ask_her_name'};
+  if(/\bwho is your bestuu\b|\bwho is your bestie\b/.test(text)) return {intent:'ask_ai_bestuu'};
+  if(/\bwho (is )?your creator\b|\bwho made you\b/.test(text)) return {intent:'ask_creator'};
+  if(/\bwhat(?:'s| is)? my favorite color\b|\bwhat(?:'s| is)? her favorite color\b|\bfavorite color\b/.test(text)) return {intent:'ask_fav_color'};
+  if(/\bwhat do i like\b|\bwhat does she like\b|\bwhat do you like\b/.test(text)) return {intent:'ask_likes'};
+  if(/\bmy sister\b|\bwho is my sister\b|\bsister name\b/.test(text)) return {intent:'ask_sister'};
+  if(/\bdo you love me\b|\byou love me\b/.test(text)) return {intent:'ask_love'};
+  if(/\blove calculator\b|\blove calc\b/.test(text)) return {intent:'love_calc'};
+  if(/\bsecret\b|\bsecret message\b/.test(text)) return {intent:'secret'};
+  if(/\bhello\b|\bhi\b|\bhii\b|\bhey\b/.test(text)) return {intent:'greet'};
+  // fallback unknown
+  return {intent:'unknown'};
+}
+
+/* current speaker (default Mujgan) */
+let currentSpeaker = 'Mujgan';
+
+/* handle intent -> produce response logic (short replies only) */
+function handleIntent(intentObj, rawText){
+  const i = intentObj.intent;
+  // set identity
+  if(i === 'set_identity'){
+    const name = intentObj.value;
+    // accept only Soham or Mujgan or custom
+    if(/soham/i.test(name)) currentSpeaker = 'Soham';
+    else if(/mujgan/i.test(name)) currentSpeaker = 'Mujgan';
+    else currentSpeaker = name[0].toUpperCase()+name.slice(1);
+    return `Okay — noted ${currentSpeaker}.`;
+  }
+
+  if(i === 'ask_my_name'){
+    // special behavior: first a short random sweet reply, then the real answer
+    return { special: 'name_sequence', replyFirst: randomShort(), replyFinal: `Your name is ${DATA.Mujgan.name} 💖` };
+  }
+  if(i === 'ask_her_name'){
+    return `Her name is ${DATA.Mujgan.name} 💕`;
+  }
+  if(i === 'ask_ai_bestuu'){
+    return `${DATA.Soham.name} — my bestuu 💙`;
+  }
+  if(i === 'ask_creator'){
+    return DATA.creatorText;
+  }
+  if(i === 'ask_fav_color'){
+    // assume "my" refers to currentSpeaker; but we keep simple: if asked "my favorite color" -> Mujgan
+    return `${DATA.Mujgan.name}'s favorite color is ${DATA.Mujgan.favColors} 💙🤍`;
+  }
+  if(i === 'ask_likes'){
+    return `${DATA.Mujgan.name} likes ${DATA.Mujgan.likes.join(', ')}.`;
+  }
+  if(i === 'ask_sister'){
+    return `Your sister's name is ${DATA.sister} 🐱`;
+  }
+  if(i === 'ask_love'){
+    return `Yes — of course I love you 💗`;
+  }
+  if(i === 'love_calc'){
+    return `Soham ❤️ Mujgan = ♾️ Infinity`;
+  }
+  if(i === 'secret'){
+    return `Secret: Small notes matter — say "I love you" today 💌`;
+  }
+  if(i === 'greet'){
+    return randomShort();
+  }
+  // unknown -> don't say random long; give a short reply OR a tiny follow-up question
+  if(i === 'unknown'){
+    // 50% chance ask a tiny follow-up, else short sweet
+    if(Math.random() < 0.5) return randomShort();
+    return FOLLOW_UP[Math.floor(Math.random()*FOLLOW_UP.length)];
+  }
+  return "I can't calculate that 💭";
+}
+
+/* helper random short */
+function randomShort(){ return SHORT_REPLIES[Math.floor(Math.random()*SHORT_REPLIES.length)]; }
+
+/* pipeline: reading -> thinking -> typing -> answer */
+async function sendFlow(raw){
+  // show user
+  appendUser(raw);
+  // reading
+  const placeholder = appendBotStatus('Reading...');
+  await wait(readMs);
+  // thinking
+  const status = placeholder.querySelector('.statusLine'); if(status) status.textContent = 'Thinking...';
+  await wait(thinkMs);
+  // typing indicator
+  replaceWithTyping(placeholder);
+  await wait(typeMs);
+
+  // detect & handle
+  const intent = detectIntent(raw);
+  const result = handleIntent(intent, raw);
+
+  // special case for name sequence
+  if(result && typeof result === 'object' && result.special === 'name_sequence'){
+    // reveal first short reply, then after small delay reveal final answer
+    await revealText(placeholder, result.replyFirst);
+    await wait(450);
+    const row2 = appendBotStatus('Thinking...');
+    await wait(thinkMs);
+    replaceWithTyping(row2);
+    await wait(typeMs);
+    await revealText(row2, result.replyFinal);
+    return;
+  }
+
+  // normal reveal
+  await revealText(placeholder, result || "I can't calculate that 💭");
+}
+
+/* small wait */
+function wait(ms){ return new Promise(res=>setTimeout(res, ms)); }
+
+/* UI small helpers (re-declared to ensure closures) */
+function appendUser(text){
+  const row = document.createElement('div'); row.className='msgRow msg user';
+  const b = document.createElement('div'); b.className='msgBubble user'; b.textContent = text;
+  row.appendChild(b); messagesEl.appendChild(row); messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+function appendBotStatus(status){
+  const row = document.createElement('div'); row.className='msgRow msg ai';
+  const b = document.createElement('div'); b.className='msgBubble ai';
+  const s = document.createElement('div'); s.className='statusLine'; s.textContent = status;
+  b.appendChild(s); row.appendChild(b); messagesEl.appendChild(row); messagesEl.scrollTop = messagesEl.scrollHeight;
+  return row;
+}
+function replaceWithTyping(row){
+  if(!row) return;
+  const b = row.querySelector('.msgBubble');
+  b.textContent = '';
+  const span = document.createElement('span'); span.textContent = '• • • typing'; span.style.fontStyle='italic'; span.style.opacity='0.8';
+  b.appendChild(span);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+function revealText(row, text){
+  return new Promise(resolve=>{
+    if(!row){ simpleBot(text); return resolve(); }
+    const b = row.querySelector('.msgBubble');
+    b.textContent = text;
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+    // keep it short — resolve quickly
+    setTimeout(resolve, Math.min(600, 20 * text.length));
+  });
+}
+function simpleBot(text){
+  const row = document.createElement('div'); row.className='msgRow msg ai';
+  const b = document.createElement('div'); b.className='msgBubble ai'; b.textContent = text;
+  row.appendChild(b); messagesEl.appendChild(row); messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+/* input events */
+sendBtn.addEventListener('click', ()=>{ const v=inputEl.value.trim(); if(!v) return; inputEl.value=''; sendFlow(v); });
+inputEl.addEventListener('keydown',(e)=>{ if(e.key==='Enter'){ const v=inputEl.value.trim(); if(!v) return; inputEl.value=''; sendFlow(v); }});
+
+/* menu */
+menuBtn.addEventListener('click', ()=>{ menuPanel.style.display = menuPanel.style.display==='block' ? 'none' : 'block'; });
+document.body.addEventListener('click', (e)=>{ if(!menuPanel.contains(e.target) && !menuBtn.contains(e.target)) menuPanel.style.display='none'; });
+
+document.getElementById('menuLove').addEventListener('click', ()=>{ openModal('<h3>💖 Love Calculator</h3><p>Soham &amp; Mujgan = ♾️ Infinity</p><div style=\"text-align:right;margin-top:8px\"><button onclick=\"closeModal()\">Close</button></div>'); });
+document.getElementById('menuSecret').addEventListener('click', ()=>{ openModal('<h3>🔒 Secret Message</h3><p>Secret: Little things matter ❤️</p><div style=\"text-align:right;margin-top:8px\"><button onclick=\"closeModal()\">Close</button></div>'); });
+document.getElementById('menuSettings').addEventListener('click', ()=>{ openModal(`<h3>⚙ Settings</h3><p>Personal data stored locally.</p><div style=\"text-align:right;margin-top:8px\"><button onclick=\"closeModal()\">Close</button></div>`); });
+
+function openModal(html){ modalContent.innerHTML = html; overlay.style.display='flex'; }
+function closeModal(){ overlay.style.display='none'; modalContent.innerHTML=''; }
+
+/* initial greet */
+setTimeout(()=>{ simpleBot(`Hii ${DATA.Mujgan.name} 💕`); },600);
+
+/* Done */
+</script>
+</body>
+</html>
